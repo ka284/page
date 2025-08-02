@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Page Remover</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 50px;
+      background-color: #f5f5f5;
+    }
+    h2 {
+      color: #333;
+    }
+    .container {
+      background-color: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 400px;
+      margin: auto;
+    }
+    input[type="file"],
+    select,
+    button {
+      margin-top: 15px;
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:disabled {
+      background-color: #aaa;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Remove a Page from PDF</h2>
+    <input type="file" id="pdfInput" accept="application/pdf">
+    <select id="pageSelect" disabled></select>
+    <button id="removeBtn" disabled>Remove Selected Page</button>
+  </div>
+
+  <script type="module">
+    import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib";
+    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.10.111/build/pdf.min.mjs";
+
+    const pdfInput = document.getElementById("pdfInput");
+    const pageSelect = document.getElementById("pageSelect");
+    const removeBtn = document.getElementById("removeBtn");
+
+    let originalPdfBytes;
+
+    pdfInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      originalPdfBytes = await file.arrayBuffer();
+
+      const loadingTask = pdfjsLib.getDocument({ data: originalPdfBytes });
+      const pdf = await loadingTask.promise;
+      const numPages = pdf.numPages;
+
+      pageSelect.innerHTML = "";
+      for (let i = 1; i <= numPages; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = `Page ${i}`;
+        pageSelect.appendChild(option);
+      }
+
+      pageSelect.disabled = false;
+      removeBtn.disabled = false;
+    });
+
+    removeBtn.addEventListener("click", async () => {
+      const pageToRemove = parseInt(pageSelect.value);
+
+      const pdfDoc = await PDFDocument.load(originalPdfBytes);
+      const totalPages = pdfDoc.getPageCount();
+
+      if (pageToRemove < 1 || pageToRemove > totalPages) {
+        alert("Invalid page number selected!");
+        return;
+      }
+
+      const newPdfDoc = await PDFDocument.create();
+
+      for (let i = 0; i < totalPages; i++) {
+        if (i !== pageToRemove - 1) {
+          const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [i]);
+          newPdfDoc.addPage(copiedPage);
+        }
+      }
+
+      const newPdfBytes = await newPdfDoc.save();
+
+      const blob = new Blob([newPdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "PDF_without_page_" + pageToRemove + ".pdf";
+      a.click();
+    });
+  </script>
+</body>
+</html>
